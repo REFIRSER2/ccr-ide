@@ -1,32 +1,31 @@
-import React from 'react';
-import { Box, Text, useFocus, useInput } from 'ink';
+import React, { useState } from 'react';
+import { Box, Text, useInput } from 'ink';
 import type { SessionInfo } from '../../shared/types.js';
 
 interface SessionListProps {
   sessions: SessionInfo[];
   activeSessionId: string | null;
+  visible: boolean;
   onSelect: (sessionId: string) => void;
   onCreate: () => void;
   onDestroy: (sessionId: string) => void;
-  width: number;
+  onClose: () => void;
 }
 
 export function SessionList({
   sessions,
   activeSessionId,
+  visible,
   onSelect,
   onCreate,
   onDestroy,
-  width,
+  onClose,
 }: SessionListProps) {
-  const { isFocused } = useFocus({ id: 'session-list' });
-  const [selectedIndex, setSelectedIndex] = React.useState(0);
-
-  // Include a "New Session" entry at the end
-  const totalItems = sessions.length + 1;
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const totalItems = sessions.length + 1; // +1 for "New Session"
 
   useInput((input, key) => {
-    if (!isFocused) return;
+    if (!visible) return;
 
     if (key.upArrow) {
       setSelectedIndex(prev => Math.max(0, prev - 1));
@@ -35,74 +34,72 @@ export function SessionList({
     } else if (key.return) {
       if (selectedIndex < sessions.length) {
         onSelect(sessions[selectedIndex].id);
+        onClose();
       } else {
         onCreate();
       }
-    } else if (input === 'd' || key.delete) {
+    } else if (input === 'd') {
       if (selectedIndex < sessions.length) {
         onDestroy(sessions[selectedIndex].id);
       }
+    } else if (key.escape) {
+      onClose();
     }
-  }, { isActive: isFocused });
+  }, { isActive: visible });
+
+  if (!visible) return null;
 
   return (
     <Box
       flexDirection="column"
-      width={width}
-      borderStyle="single"
-      borderRight={true}
-      borderTop={false}
-      borderBottom={false}
-      borderLeft={false}
+      width={24}
+      borderStyle="round"
+      borderColor="gray"
+      paddingX={1}
     >
-      <Box paddingX={1}>
-        <Text bold underline color={isFocused ? 'cyan' : 'white'}>
-          Sessions
-        </Text>
+      <Box marginBottom={1}>
+        <Text bold color="white"> SESSIONS </Text>
+        <Text dimColor> (Esc close)</Text>
       </Box>
 
-      <Box flexDirection="column" paddingX={1} flexGrow={1}>
-        {sessions.map((session, index) => {
+      {sessions.length === 0 ? (
+        <Text dimColor italic>  No sessions</Text>
+      ) : (
+        sessions.map((session, index) => {
           const isActive = session.id === activeSessionId;
-          const isSelected = index === selectedIndex && isFocused;
+          const isSelected = index === selectedIndex;
 
           return (
-            <Box key={session.id}>
+            <Box key={session.id} height={1}>
               <Text
-                color={isActive ? 'green' : isSelected ? 'cyan' : 'white'}
-                bold={isActive}
-                inverse={isSelected}
+                backgroundColor={isSelected ? 'blue' : undefined}
+                color={isActive ? 'green' : isSelected ? 'white' : 'gray'}
+                bold={isActive || isSelected}
               >
-                {isActive ? ' > ' : '   '}
-                {truncate(session.name, width - 6)}
+                {isActive ? ' >' : '  '}
+                {' '}{session.name.slice(0, 18)}
+                {session.connected ? '' : ' (idle)'}
               </Text>
             </Box>
           );
-        })}
+        })
+      )}
 
-        {/* New Session button */}
-        <Box marginTop={sessions.length > 0 ? 1 : 0}>
-          <Text
-            color="green"
-            inverse={selectedIndex === sessions.length && isFocused}
-          >
-            {'   '}[+] New
-          </Text>
-        </Box>
+      <Box marginTop={1} height={1}>
+        <Text
+          backgroundColor={selectedIndex === sessions.length ? 'blue' : undefined}
+          color={selectedIndex === sessions.length ? 'white' : 'green'}
+          bold={selectedIndex === sessions.length}
+        >
+          {'  + New Session'}
+        </Text>
       </Box>
 
-      {isFocused && (
-        <Box paddingX={1} borderStyle="single" borderTop={true} borderBottom={false} borderLeft={false} borderRight={false}>
-          <Text dimColor>
-            ↑↓ nav  ⏎ select  d del
-          </Text>
-        </Box>
-      )}
+      <Box marginTop={1} borderStyle="single" borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} paddingTop={1}>
+        <Text dimColor>
+          ↑↓ select  ⏎ open  d delete
+        </Text>
+      </Box>
     </Box>
   );
-}
-
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '…';
 }

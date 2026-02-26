@@ -10,41 +10,36 @@ interface BottomBarProps {
 }
 
 export function BottomBar({ status, latency, sessionCount, error }: BottomBarProps) {
-  const statusIcon = status === 'authenticated' ? '●' : status === 'disconnected' ? '○' : '◐';
-  const statusColor = status === 'authenticated' ? 'green' : status === 'disconnected' ? 'red' : 'yellow';
-  const statusLabel = status === 'authenticated' ? 'Online' : status;
+  const icon = status === 'authenticated' ? '●'
+    : status === 'disconnected' ? '○'
+    : '◐';
+  const color = status === 'authenticated' ? 'green'
+    : status === 'disconnected' ? 'red'
+    : 'yellow';
+  const label = status === 'authenticated' ? 'Online'
+    : status === 'disconnected' ? 'Offline'
+    : status;
 
   return (
-    <Box paddingX={1} justifyContent="space-between">
+    <Box height={1} paddingX={1} justifyContent="space-between">
       <Box gap={2}>
-        <Text color={statusColor} bold>
-          {statusIcon} {statusLabel}
+        <Text color={color}>
+          {icon} {label}
         </Text>
         {latency > 0 && (
-          <Text dimColor>
-            {latency}ms
-          </Text>
+          <Text dimColor>{latency}ms</Text>
         )}
         <Text dimColor>
           {sessionCount} session{sessionCount !== 1 ? 's' : ''}
         </Text>
       </Box>
-
-      <Box gap={2}>
-        {error && (
-          <Text color="red">
-            {truncateError(error)}
-          </Text>
+      <Box gap={1}>
+        {error ? (
+          <Text color="red">{error.length > 50 ? error.slice(0, 47) + '...' : error}</Text>
+        ) : (
+          <Text dimColor>/help for commands</Text>
         )}
-        <Text dimColor>
-          Tab:focus  Ctrl+N:new  Ctrl+C:quit
-        </Text>
       </Box>
     </Box>
   );
-}
-
-function truncateError(err: string): string {
-  if (err.length > 40) return err.slice(0, 37) + '...';
-  return err;
 }

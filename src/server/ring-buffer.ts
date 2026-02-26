@@ -34,4 +34,33 @@ export class RingBuffer {
   get size(): number {
     return this.totalBytes;
   }
+
+  get isEmpty(): boolean {
+    return this.totalBytes === 0;
+  }
+
+  /**
+   * Returns serializable data for session persistence.
+   * Each chunk is converted to a base64 string.
+   */
+  toJSON(): { chunks: string[]; maxBytes: number } {
+    return {
+      chunks: this.chunks.map((c) => c.toString('base64')),
+      maxBytes: this.maxBytes,
+    };
+  }
+
+  /**
+   * Restore a RingBuffer from previously saved chunks.
+   * @param chunks - Array of Buffer instances to restore from
+   * @param maxBytes - Optional max size; defaults to the sum of all chunk sizes if not provided
+   */
+  static fromChunks(chunks: Buffer[], maxBytes?: number): RingBuffer {
+    const totalBytes = chunks.reduce((sum, c) => sum + c.length, 0);
+    const rb = new RingBuffer(maxBytes ?? totalBytes);
+    for (const chunk of chunks) {
+      rb.push(chunk);
+    }
+    return rb;
+  }
 }

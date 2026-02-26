@@ -11,7 +11,7 @@ export interface UseConnectionOptions {
 }
 
 export interface UseConnectionResult {
-  connection: Connection | null;
+  connectionRef: React.RefObject<Connection | null>;
   status: ConnectionStatus;
   error: string | null;
   latency: number;
@@ -23,12 +23,12 @@ export function useConnection(opts: UseConnectionOptions): UseConnectionResult {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [latency, setLatency] = useState(0);
-  const connRef = useRef<Connection | null>(null);
+  const connectionRef = useRef<Connection | null>(null);
   const pingTimeRef = useRef<number>(0);
 
   const connect = useCallback(() => {
-    if (connRef.current) {
-      connRef.current.disconnect();
+    if (connectionRef.current) {
+      connectionRef.current.disconnect();
     }
 
     const conn = new Connection({
@@ -65,47 +65,50 @@ export function useConnection(opts: UseConnectionOptions): UseConnectionResult {
     });
 
     conn.on('error', (err: Error) => {
-      setError(err.message);
+      if (err.message !== 'WebSocket was closed before the connection was established') {
+        setError(err.message);
+      }
     });
 
     conn.on('pong', () => {
       if (pingTimeRef.current > 0) {
         setLatency(Date.now() - pingTimeRef.current);
+        pingTimeRef.current = 0;
       }
     });
 
-    connRef.current = conn;
+    connectionRef.current = conn;
     setStatus('connecting');
     conn.connect();
   }, [opts.host, opts.port, opts.token]);
 
   const disconnect = useCallback(() => {
-    if (connRef.current) {
-      connRef.current.disconnect();
-      connRef.current = null;
+    if (connectionRef.current) {
+      connectionRef.current.disconnect();
+      connectionRef.current = null;
     }
     setStatus('disconnected');
   }, []);
 
-  // Latency ping
+  // Latency measurement
   useEffect(() => {
     const interval = setInterval(() => {
-      if (connRef.current?.connected) {
+      if (connectionRef.current?.connected) {
         pingTimeRef.current = Date.now();
       }
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      connRef.current?.disconnect();
+      connectionRef.current?.disconnect();
     };
   }, []);
 
   return {
-    connection: connRef.current,
+    connectionRef,
     status,
     error,
     latency,

@@ -74,6 +74,52 @@ export class SessionManager {
     return undefined;
   }
 
+  /**
+   * Returns all sessions where the given WebSocket is the connected client.
+   */
+  getSessionsForClient(ws: WebSocket): PtySession[] {
+    const result: PtySession[] = [];
+    for (const managed of this.sessions.values()) {
+      if (managed.client === ws) {
+        result.push(managed.session);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Returns the first session whose name matches the given string.
+   */
+  findSessionByName(name: string): PtySession | undefined {
+    for (const managed of this.sessions.values()) {
+      if (managed.session.name === name) {
+        return managed.session;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * If no sessions exist, creates a new default session and returns it.
+   * Otherwise, returns the first available (non-connected) session,
+   * or the very first session if all are occupied.
+   */
+  getOrCreateDefaultSession(): PtySession {
+    if (this.sessions.size === 0) {
+      return this.createSession({ name: 'default' });
+    }
+
+    // Prefer an unoccupied session
+    for (const managed of this.sessions.values()) {
+      if (managed.client === null) {
+        return managed.session;
+      }
+    }
+
+    // All sessions are occupied; return the first one
+    return this.sessions.values().next().value!.session;
+  }
+
   destroySession(sessionId: string): boolean {
     const managed = this.sessions.get(sessionId);
     if (!managed) return false;
@@ -107,6 +153,12 @@ export class SessionManager {
     let cleaned = 0;
     for (const [id, managed] of this.sessions) {
       if (managed.client === null && managed.session.isIdle()) {
+        const idleMinutes = Math.round(
+          (Date.now() - managed.session.lastActivity.getTime()) / 60_000,
+        );
+        console.log(
+          `[SessionManager] Cleaning up idle session: id=${id}, name="${managed.session.name}", idle for ${idleMinutes}m`,
+        );
         managed.session.kill();
         this.sessions.delete(id);
         cleaned++;

@@ -8,6 +8,7 @@ import {
   decodeJsonPayload,
   encodeTerminalData,
   encodeSessionList,
+  encodeSessionOutput,
   encodeAuthOk,
   encodeError,
   encodePong,
@@ -79,6 +80,8 @@ export class CCRServer {
       if (payload) {
         ws.authenticated = true;
         this.sendMessage(ws, encodeAuthOk());
+        // Automatically send current session list upon authentication
+        this.sendSessionList(ws);
       }
     }
 
@@ -102,6 +105,8 @@ export class CCRServer {
             if (payload) {
               ws.authenticated = true;
               this.sendMessage(ws, encodeAuthOk());
+              // Automatically send current session list upon authentication
+              this.sendSessionList(ws);
               // Re-register the main message handler
               ws.on('message', (data: Buffer | ArrayBuffer) => this.handleMessage(ws, data));
             } else {
@@ -202,8 +207,8 @@ export class CCRServer {
         // Auto-attach to new session
         this.attachToSession(ws, session.id);
 
-        // Send updated session list
-        this.sendSessionList(ws);
+        // Broadcast updated session list to all authenticated clients
+        this.broadcastSessionList();
         break;
       }
 
@@ -233,7 +238,8 @@ export class CCRServer {
           ws.currentSessionId = null;
         }
         this.sessionManager.destroySession(ctrl.sessionId);
-        this.sendSessionList(ws);
+        // Broadcast updated session list to all authenticated clients
+        this.broadcastSessionList();
         break;
       }
 
@@ -258,7 +264,8 @@ export class CCRServer {
 
     const success = this.sessionManager.attachClient(sessionId, ws, (data: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) {
-        this.sendMessage(ws, encodeTerminalData(data));
+        // Send SESSION_OUTPUT with sessionId so the client knows which session produced the output
+        this.sendMessage(ws, encodeSessionOutput(sessionId, data));
       }
     });
 
@@ -289,6 +296,21 @@ export class CCRServer {
   private sendSessionList(ws: WebSocket): void {
     const sessions = this.sessionManager.listSessions();
     this.sendMessage(ws, encodeSessionList(sessions));
+  }
+
+  /**
+   * Broadcast the current session list to all authenticated, connected clients.
+   */
+  private broadcastSessionList(): void {
+    if (!this.wss) return;
+    const sessions = this.sessionManager.listSessions();
+    const data = encodeSessionList(sessions);
+    this.wss.clients.forEach((ws) => {
+      const authWs = ws as AuthenticatedSocket;
+      if (authWs.authenticated && ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
   }
 
   private startHeartbeat(): void {

@@ -1,64 +1,45 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { ConnectionStatus } from '../hooks/useConnection.js';
-import { APP_VERSION } from '../../shared/constants.js';
 
 interface StatusBarProps {
   host: string;
   port: number;
   status: ConnectionStatus;
-  activeSessionId: string | null;
   activeSessionName: string | null;
 }
 
-export function StatusBar({ host, port, status, activeSessionId, activeSessionName }: StatusBarProps) {
-  const statusIcon = getStatusIcon(status);
-  const statusColor = getStatusColor(status);
+export function StatusBar({ host, port, status, activeSessionName }: StatusBarProps) {
+  const icon = status === 'authenticated' ? '●'
+    : status === 'disconnected' ? '○'
+    : '◐';
+  const color = status === 'authenticated' ? 'green'
+    : status === 'disconnected' ? 'red'
+    : 'yellow';
 
   return (
-    <Box
-      borderStyle="single"
-      borderBottom={false}
-      borderLeft={false}
-      borderRight={false}
-      paddingX={1}
-      justifyContent="space-between"
-    >
-      <Box gap={2}>
-        <Text color={statusColor} bold>{statusIcon} CCR</Text>
-        <Text dimColor>
-          {host}:{port}
-        </Text>
-        {activeSessionId && (
-          <Text color="cyan">
-            Session: {activeSessionName ?? activeSessionId}
-          </Text>
+    <Box height={1} paddingX={1} justifyContent="space-between">
+      <Box gap={1}>
+        <Text backgroundColor="blue" color="white" bold>{' CCR '}</Text>
+        <Text color={color}>{icon}</Text>
+        <Text dimColor>{host}:{port}</Text>
+        {activeSessionName && (
+          <>
+            <Text dimColor>|</Text>
+            <Text color="cyan" bold>{activeSessionName}</Text>
+          </>
         )}
       </Box>
-      <Box gap={2}>
-        <Text dimColor>v{APP_VERSION}</Text>
-        <Text color={statusColor}>{status}</Text>
+      <Box gap={1}>
+        <Text dimColor>Ctrl+N</Text>
+        <Text dimColor>new</Text>
+        <Text dimColor>|</Text>
+        <Text dimColor>Ctrl+S</Text>
+        <Text dimColor>sidebar</Text>
+        <Text dimColor>|</Text>
+        <Text dimColor>Ctrl+C</Text>
+        <Text dimColor>quit</Text>
       </Box>
     </Box>
   );
-}
-
-function getStatusIcon(status: ConnectionStatus): string {
-  switch (status) {
-    case 'authenticated': return '●';
-    case 'connected': return '◐';
-    case 'connecting': return '○';
-    case 'reconnecting': return '◌';
-    case 'disconnected': return '○';
-  }
-}
-
-function getStatusColor(status: ConnectionStatus): string {
-  switch (status) {
-    case 'authenticated': return 'green';
-    case 'connected': return 'yellow';
-    case 'connecting': return 'yellow';
-    case 'reconnecting': return 'yellow';
-    case 'disconnected': return 'red';
-  }
 }

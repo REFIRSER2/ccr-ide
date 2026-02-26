@@ -8,6 +8,7 @@ export enum MessageType {
   ERROR = 0x06,
   SESSION_LIST = 0x07,
   AUTH_OK = 0x08,
+  SESSION_OUTPUT = 0x09,
 }
 
 export enum SessionAction {

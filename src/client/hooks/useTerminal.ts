@@ -1,115 +1,190 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type RefObject } from 'react';
 import type { Connection } from '../connection.js';
 
-const MAX_OUTPUT_LINES = 500;
+const MAX_MESSAGES = 200;
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+}
 
 export interface UseTerminalResult {
-  outputLines: string[];
+  messages: ChatMessage[];
   inputHistory: string[];
-  historyIndex: number;
   sendInput: (text: string) => void;
   sendRawKey: (data: string) => void;
-  clearOutput: () => void;
+  clearMessages: () => void;
   navigateHistory: (direction: 'up' | 'down') => string;
 }
 
-export function useTerminal(connection: Connection | null): UseTerminalResult {
-  const [outputLines, setOutputLines] = useState<string[]>([]);
+let messageIdCounter = 0;
+function nextId(): string {
+  return String(++messageIdCounter);
+}
+
+export function useTerminal(connectionRef: RefObject<Connection | null>): UseTerminalResult {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputHistory, setInputHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const bufferRef = useRef('');
+  const historyIndexRef = useRef(-1);
+  const outputBufferRef = useRef('');
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Flush buffered output as a single assistant message
+  const flushBuffer = useCallback(() => {
+    if (outputBufferRef.current.length === 0) return;
+
+    const content = cleanAnsi(outputBufferRef.current);
+    outputBufferRef.current = '';
+
+    if (content.trim().length === 0) return;
+
+    setMessages(prev => {
+      // Merge into last assistant message if it exists and is recent
+      const last = prev[prev.length - 1];
+      if (last && last.role === 'assistant' &&
+          Date.now() - last.timestamp.getTime() < 2000) {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...last,
+          content: last.content + content,
+        };
+        if (updated.length > MAX_MESSAGES) {
+          return updated.slice(updated.length - MAX_MESSAGES);
+        }
+        return updated;
+      }
+
+      const newMsg: ChatMessage = {
+        id: nextId(),
+        role: 'assistant',
+        content,
+        timestamp: new Date(),
+      };
+      const updated = [...prev, newMsg];
+      if (updated.length > MAX_MESSAGES) {
+        return updated.slice(updated.length - MAX_MESSAGES);
+      }
+      return updated;
+    });
+  }, []);
 
   useEffect(() => {
-    if (!connection) return;
+    const conn = connectionRef.current;
+    if (!conn) return;
 
     const handleData = (data: Buffer) => {
-      const text = data.toString('utf-8');
+      outputBufferRef.current += data.toString('utf-8');
 
-      // Buffer incoming data and split by newlines
-      bufferRef.current += text;
-      const parts = bufferRef.current.split('\n');
-
-      if (parts.length > 1) {
-        // All but the last part are complete lines
-        const completeLines = parts.slice(0, -1);
-        bufferRef.current = parts[parts.length - 1];
-
-        setOutputLines(prev => {
-          const updated = [...prev, ...completeLines];
-          // Trim to max lines
-          if (updated.length > MAX_OUTPUT_LINES) {
-            return updated.slice(updated.length - MAX_OUTPUT_LINES);
-          }
-          return updated;
-        });
+      // Debounce flush: wait for data to stop streaming before creating message
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
       }
-
-      // If there's a partial line in buffer, update the last line
-      if (bufferRef.current.length > 0) {
-        setOutputLines(prev => {
-          const updated = [...prev];
-          // Add or update partial line
-          if (updated.length === 0 || !updated[updated.length - 1].endsWith('\r')) {
-            updated.push(bufferRef.current);
-          } else {
-            updated[updated.length - 1] = bufferRef.current;
-          }
-          if (updated.length > MAX_OUTPUT_LINES) {
-            return updated.slice(updated.length - MAX_OUTPUT_LINES);
-          }
-          return updated;
-        });
-      }
+      flushTimerRef.current = setTimeout(flushBuffer, 100);
     };
 
-    connection.on('data', handleData);
+    conn.on('data', handleData);
     return () => {
-      connection.removeListener('data', handleData);
+      conn.removeListener('data', handleData);
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+      }
     };
-  }, [connection]);
+  }, [connectionRef.current, flushBuffer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendInput = useCallback((text: string) => {
-    if (!connection) return;
-    // Send with newline (Enter key)
-    connection.sendInput(text + '\r');
+    const conn = connectionRef.current;
+    if (!conn) return;
+
+    // Flush any pending output first
+    flushBuffer();
+
+    // Add user message to chat
+    setMessages(prev => {
+      const newMsg: ChatMessage = {
+        id: nextId(),
+        role: 'user',
+        content: text,
+        timestamp: new Date(),
+      };
+      return [...prev, newMsg];
+    });
+
+    // Send to PTY with carriage return
+    conn.sendInput(text + '\r');
 
     if (text.trim()) {
       setInputHistory(prev => [...prev, text]);
-      setHistoryIndex(-1);
+      historyIndexRef.current = -1;
     }
-  }, [connection]);
+  }, [connectionRef, flushBuffer]);
 
   const sendRawKey = useCallback((data: string) => {
-    if (!connection) return;
-    connection.sendInput(data);
-  }, [connection]);
+    connectionRef.current?.sendInput(data);
+  }, [connectionRef]);
 
-  const clearOutput = useCallback(() => {
-    setOutputLines([]);
-    bufferRef.current = '';
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    outputBufferRef.current = '';
   }, []);
 
   const navigateHistory = useCallback((direction: 'up' | 'down'): string => {
     if (inputHistory.length === 0) return '';
 
-    let newIndex: number;
     if (direction === 'up') {
-      newIndex = historyIndex === -1 ? inputHistory.length - 1 : Math.max(0, historyIndex - 1);
+      historyIndexRef.current = historyIndexRef.current === -1
+        ? inputHistory.length - 1
+        : Math.max(0, historyIndexRef.current - 1);
     } else {
-      newIndex = historyIndex === -1 ? -1 : Math.min(inputHistory.length - 1, historyIndex + 1);
+      historyIndexRef.current = historyIndexRef.current === -1
+        ? -1
+        : Math.min(inputHistory.length, historyIndexRef.current + 1);
+      if (historyIndexRef.current >= inputHistory.length) {
+        historyIndexRef.current = -1;
+      }
     }
 
-    setHistoryIndex(newIndex);
-    return newIndex >= 0 ? inputHistory[newIndex] : '';
-  }, [inputHistory, historyIndex]);
+    return historyIndexRef.current >= 0
+      ? inputHistory[historyIndexRef.current]
+      : '';
+  }, [inputHistory]);
 
   return {
-    outputLines,
+    messages,
     inputHistory,
-    historyIndex,
     sendInput,
     sendRawKey,
-    clearOutput,
+    clearMessages,
     navigateHistory,
   };
+}
+
+/**
+ * Clean ANSI escape codes for display in Ink.
+ * Strips cursor movement, screen clearing, and non-SGR sequences.
+ * Keeps basic color (SGR) sequences that Ink can handle.
+ */
+function cleanAnsi(str: string): string {
+  return str
+    // Remove OSC sequences (title bar, etc)
+    .replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\)/g, '')
+    // Remove cursor movement/position: ESC[nA, ESC[nB, ESC[nC, ESC[nD, ESC[H, ESC[f
+    .replace(/\x1b\[\d*[ABCDHfG]/g, '')
+    // Remove erase: ESC[nJ, ESC[nK
+    .replace(/\x1b\[\d*[JK]/g, '')
+    // Remove mode set/reset: ESC[?n[hl]
+    .replace(/\x1b\[\?\d+[hl]/g, '')
+    // Remove scroll region, save/restore cursor
+    .replace(/\x1b\[\d*;?\d*[rs]/g, '')
+    .replace(/\x1b[78]/g, '')
+    // Remove other non-SGR CSI sequences (keep m for colors)
+    .replace(/\x1b\[[\d;]*[a-lnp-zA-Z]/g, '')
+    // Remove lone ESC sequences
+    .replace(/\x1b[^[\]m]/g, '')
+    // Normalize line endings
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    // Remove excessive blank lines
+    .replace(/\n{3,}/g, '\n\n');
 }

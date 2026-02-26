@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import {
   decodeMessage,
   decodeJsonPayload,
+  decodeSessionOutput,
   encodeAuth,
   encodeTerminalData,
   encodeResize,
@@ -98,6 +99,13 @@ export class Connection extends EventEmitter {
         case MessageType.TERMINAL_DATA:
           this.emit('data', msg.payload);
           break;
+
+        case MessageType.SESSION_OUTPUT: {
+          const output = decodeSessionOutput(msg.payload);
+          this.emit('data', output.data);
+          this.emit('session-output', output.sessionId, output.data);
+          break;
+        }
 
         case MessageType.SESSION_LIST: {
           const sessions = decodeJsonPayload<SessionInfo[]>(msg.payload);

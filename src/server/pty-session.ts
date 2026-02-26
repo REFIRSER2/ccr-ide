@@ -17,6 +17,8 @@ export interface PtySessionOptions {
   cwd?: string;
   cols?: number;
   rows?: number;
+  /** Additional CLI args to pass to claude (e.g. ['--continue'] for session resumption) */
+  args?: string[];
 }
 
 export class PtySession extends EventEmitter {
@@ -24,6 +26,7 @@ export class PtySession extends EventEmitter {
   readonly name: string;
   readonly cwd: string;
   readonly createdAt: Date;
+  readonly args: string[];
   lastActivity: Date;
 
   private ptyProcess: pty.IPty;
@@ -35,6 +38,7 @@ export class PtySession extends EventEmitter {
     this.id = opts.id;
     this.name = opts.name;
     this.cwd = opts.cwd ?? process.cwd();
+    this.args = opts.args ?? [];
     this.createdAt = new Date();
     this.lastActivity = new Date();
     this.scrollback = new RingBuffer(SCROLLBACK_MAX_BYTES);
@@ -43,7 +47,7 @@ export class PtySession extends EventEmitter {
     const cols = opts.cols ?? DEFAULT_PTY_COLS;
     const rows = opts.rows ?? DEFAULT_PTY_ROWS;
 
-    this.ptyProcess = pty.spawn(claudePath, [], {
+    this.ptyProcess = pty.spawn(claudePath, this.args, {
       name: 'xterm-256color',
       cols,
       rows,
@@ -104,6 +108,34 @@ export class PtySession extends EventEmitter {
     this.removeAllListeners();
   }
 
+  /**
+   * Returns the full serializable state of this session, including scrollback data.
+   * Useful for session persistence / snapshot to disk.
+   */
+  getState(): {
+    id: string;
+    name: string;
+    cwd: string;
+    args: string[];
+    createdAt: string;
+    lastActivity: string;
+    exited: boolean;
+    pid: number;
+    scrollback: ReturnType<RingBuffer['toJSON']>;
+  } {
+    return {
+      id: this.id,
+      name: this.name,
+      cwd: this.cwd,
+      args: this.args,
+      createdAt: this.createdAt.toISOString(),
+      lastActivity: this.lastActivity.toISOString(),
+      exited: this._exited,
+      pid: this.pid,
+      scrollback: this.scrollback.toJSON(),
+    };
+  }
+
   toJSON() {
     return {
       id: this.id,
@@ -117,7 +149,7 @@ export class PtySession extends EventEmitter {
   }
 }
 
-function findClaudePath(): string {
+export function findClaudePath(): string {
   const isWin = platform() === 'win32';
 
   if (isWin) {

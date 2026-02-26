@@ -83,3 +83,30 @@ export function encodeError(code: string, message: string): Buffer {
 export function encodeSessionList(sessions: unknown[]): Buffer {
   return encodeMessage(MessageType.SESSION_LIST, sessions);
 }
+
+/**
+ * Encodes terminal output data along with the sessionId it belongs to.
+ * Format: [1 byte type][8 bytes sessionId length (LE uint32) + sessionId string][terminal data]
+ */
+export function encodeSessionOutput(sessionId: string, data: Buffer | string): Buffer {
+  const typeBuf = Buffer.alloc(1);
+  typeBuf[0] = MessageType.SESSION_OUTPUT;
+
+  const sessionIdBuf = Buffer.from(sessionId, 'utf-8');
+  const sessionIdLenBuf = Buffer.alloc(4);
+  sessionIdLenBuf.writeUInt32LE(sessionIdBuf.length, 0);
+
+  const dataBuf = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
+
+  return Buffer.concat([typeBuf, sessionIdLenBuf, sessionIdBuf, dataBuf]);
+}
+
+/**
+ * Decodes a SESSION_OUTPUT message payload into sessionId and terminal data.
+ */
+export function decodeSessionOutput(payload: Buffer): { sessionId: string; data: Buffer } {
+  const sessionIdLen = payload.readUInt32LE(0);
+  const sessionId = payload.subarray(4, 4 + sessionIdLen).toString('utf-8');
+  const data = payload.subarray(4 + sessionIdLen);
+  return { sessionId, data };
+}
