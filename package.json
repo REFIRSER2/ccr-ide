@@ -1,0 +1,41 @@
+{
+  "name": "claude-code-remote-cli",
+  "version": "0.1.0",
+  "description": "Remote control tool for Claude Code CLI via WebSocket",
+  "type": "module",
+  "bin": {
+    "ccr": "./bin/ccr.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/cli/index.ts",
+    "start:server": "tsx src/cli/index.ts server start",
+    "start:client": "tsx src/cli/index.ts connect",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "remote",
+    "cli",
+    "terminal",
+    "websocket"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

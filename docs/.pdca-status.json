@@ -1,0 +1,217 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2026-02-26T22:25:23.624Z",
+  "activeFeatures": [
+    "claude-code-remote-cli",
+    "server",
+    "client",
+    "cli",
+    "bin"
+  ],
+  "primaryFeature": "claude-code-remote-cli",
+  "features": {
+    "claude-code-remote-cli": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-26T21:43:54.966Z",
+        "lastUpdated": "2026-02-26T22:24:04.266Z"
+      },
+      "lastFile": "E:/claude-code/claude-code-remote-cli/src/shared/protocol.ts"
+    },
+    "server": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-26T21:44:25.913Z",
+        "lastUpdated": "2026-02-26T22:25:23.624Z"
+      },
+      "lastFile": "E:/claude-code/claude-code-remote-cli/src/server/config.ts"
+    },
+    "client": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-26T21:46:02.595Z",
+        "lastUpdated": "2026-02-26T21:46:16.313Z"
+      },
+      "lastFile": "E:/claude-code/claude-code-remote-cli/src/client/index.ts"
+    },
+    "cli": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-26T21:46:32.256Z",
+        "lastUpdated": "2026-02-26T21:46:40.340Z"
+      },
+      "lastFile": "E:/claude-code/claude-code-remote-cli/src/cli/index.ts"
+    },
+    "bin": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-26T21:46:41.143Z",
+        "lastUpdated": "2026-02-26T21:46:41.143Z"
+      },
+      "lastFile": "E:/claude-code/claude-code-remote-cli/bin/ccr.js"
+    }
+  },
+  "pipeline": {
+    "currentPhase": 1,
+    "level": "Dynamic",
+    "phaseHistory": []
+  },
+  "session": {
+    "startedAt": "2026-02-26T21:14:44.747Z",
+    "onboardingCompleted": false,
+    "lastActivity": "2026-02-26T22:25:23.624Z"
+  },
+  "history": [
+    {
+      "timestamp": "2026-02-26T21:43:54.966Z",
+      "feature": "claude-code-remote-cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:43:59.840Z",
+      "feature": "claude-code-remote-cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:09.213Z",
+      "feature": "claude-code-remote-cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:25.913Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:28.867Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:32.640Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:49.552Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:44:59.173Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:45:32.869Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:45:37.421Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:02.595Z",
+      "feature": "client",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:15.797Z",
+      "feature": "client",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:16.313Z",
+      "feature": "client",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:32.256Z",
+      "feature": "cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:38.489Z",
+      "feature": "cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:40.340Z",
+      "feature": "cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T21:46:41.143Z",
+      "feature": "bin",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T22:24:04.266Z",
+      "feature": "claude-code-remote-cli",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T22:25:13.948Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T22:25:22.447Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-26T22:25:23.624Z",
+      "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    }
+  ]
+}
