@@ -40,16 +40,20 @@ export function createConnectCommand(): Command {
           sessionId: opts.session,
         });
       } else {
-        // TUI mode - Phase 3 implementation
-        // For now, fall back to raw mode
-        console.log('[CCR] TUI mode not yet implemented, falling back to raw mode...');
-        const { startRawMode } = await import('../client/raw-mode.js');
-        startRawMode({
-          host,
-          port,
-          token,
-          sessionId: opts.session,
-        });
+        // TUI mode with Ink
+        const { render } = await import('ink');
+        const React = await import('react');
+        const { App } = await import('../client/app.js');
+
+        render(
+          React.createElement(App, {
+            host,
+            port,
+            token,
+            sessionId: opts.session,
+          }),
+          { exitOnCtrlC: true }
+        );
       }
     });
 
