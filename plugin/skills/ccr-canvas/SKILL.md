@@ -1,4 +1,7 @@
-# /ccr-canvas
+---
+name: ccr-canvas
+description: Open the full CCR IDE layout with explorer, terminal, and preview panels
+---
 
 Open the full CCR IDE layout with explorer, terminal, and preview panels.
 

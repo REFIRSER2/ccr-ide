@@ -1,4 +1,7 @@
-# /ccr-preview
+---
+name: ccr-preview
+description: Preview a file in a split terminal pane or separate window
+---
 
 Preview a file in a split terminal pane or separate window.
 

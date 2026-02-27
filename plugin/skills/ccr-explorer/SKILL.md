@@ -1,4 +1,7 @@
-# /ccr-explorer
+---
+name: ccr-explorer
+description: Open a file explorer panel in a split terminal pane
+---
 
 Open a file explorer panel in a split terminal pane.
 

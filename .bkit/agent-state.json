@@ -1,14 +1,25 @@
 {
   "version": "1.0",
-  "enabled": false,
+  "enabled": true,
   "teamName": "",
   "feature": "claude-code-remote-cli",
   "pdcaPhase": "do",
   "orchestrationPattern": "leader",
   "ctoAgent": "opus",
-  "startedAt": "2026-02-27T01:50:14.810Z",
-  "lastUpdated": "2026-02-27T01:50:46.496Z",
-  "teammates": [],
+  "startedAt": "2026-02-27T02:13:22.682Z",
+  "lastUpdated": "2026-02-27T02:13:49.427Z",
+  "teammates": [
+    {
+      "name": "a7c645224f40efb57",
+      "role": "claude-code-guide",
+      "model": "sonnet",
+      "status": "completed",
+      "currentTask": null,
+      "taskId": null,
+      "startedAt": "2026-02-27T02:13:22.683Z",
+      "lastActivityAt": "2026-02-27T02:13:49.425Z"
+    }
+  ],
   "progress": {
     "totalTasks": 0,
     "completedTasks": 0,

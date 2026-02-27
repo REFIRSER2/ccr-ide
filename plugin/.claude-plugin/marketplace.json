@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ccr-plugin",
-  "version": "0.0.1",
-  "description": "IDE Tools",
+  "version": "0.1.0",
+  "description": "Claude Code Remote IDE Tools",
   "owner": {
     "name": "Refirser",
     "email": "choh3512@gmail.com",
@@ -11,22 +11,22 @@
   "plugins": [
     {
       "name": "ccr-plugin",
-      "description": "IDE Tools",
-      "version": "0.0.1",
+      "description": "Claude Code Remote - IDE integration plugin for terminal multiplexing and file management",
+      "version": "0.1.0",
       "author": {
         "name": "Refirser",
         "email": "choh3512@gmail.com"
       },
-      "repository": "https://github.com/popup-studio-ai/bkit-claude-code",
+      "repository": "https://github.com/REFIRSER2/ccr-ide",
       "source": {
         "source": "url",
-        "url": "https://github.com/popup-studio-ai/bkit-claude-code.git"
+        "url": "https://github.com/REFIRSER2/ccr-ide.git"
       },
       "category": "ui",
       "keywords": [
         "ui",
-		"tool",
-		"ide",
+        "tool",
+        "ide"
       ]
     }
   ]
