@@ -11,12 +11,14 @@ export function createServerCommand(): Command {
     .option('-p, --port <port>', 'Port to listen on', String(DEFAULT_PORT))
     .option('-h, --host <host>', 'Host to bind to', DEFAULT_HOST)
     .option('-t, --token <token>', 'Use a custom access token')
-    .action(async (opts: { port: string; host: string; token?: string }) => {
+    .option('--tls', 'Enable TLS (HTTPS/WSS) with auto-generated self-signed certificate')
+    .action(async (opts: { port: string; host: string; token?: string; tls?: boolean }) => {
       const { startServer } = await import('../server/index.js');
       await startServer({
         port: parseInt(opts.port, 10),
         host: opts.host,
         token: opts.token,
+        tls: opts.tls,
       });
     });
 

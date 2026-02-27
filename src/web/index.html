@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CCR - Claude Code Remote</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Session Bar -->
+  <div id="session-bar">
+    <div id="session-tabs"></div>
+    <div id="session-actions">
+      <button id="btn-new-session" title="New Session">+</button>
+    </div>
+    <div id="connection-status">
+      <span id="status-dot" class="dot offline"></span>
+      <span id="status-text">Disconnected</span>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div id="main-container">
+    <!-- File Explorer (left panel) -->
+    <div id="file-panel" class="panel">
+      <div class="panel-header">
+        <span>Explorer</span>
+        <button id="btn-toggle-explorer" class="panel-btn" title="Toggle Explorer">&#x2715;</button>
+      </div>
+      <div id="file-tree"></div>
+    </div>
+
+    <!-- Resizer -->
+    <div id="resizer-left" class="resizer"></div>
+
+    <!-- Terminal (center panel) -->
+    <div id="terminal-panel" class="panel">
+      <div class="panel-header">
+        <span>Terminal</span>
+      </div>
+      <div id="terminal-container"></div>
+      <!-- Mobile special keys bar -->
+      <div id="mobile-keys" class="mobile-only">
+        <button data-key="Escape">Esc</button>
+        <button data-key="Tab">Tab</button>
+        <button data-mod="ctrl">Ctrl</button>
+        <button data-key="ArrowUp">&uarr;</button>
+        <button data-key="ArrowDown">&darr;</button>
+        <button data-key="ArrowLeft">&larr;</button>
+        <button data-key="ArrowRight">&rarr;</button>
+        <button data-key="/">/ </button>
+      </div>
+    </div>
+
+    <!-- Resizer -->
+    <div id="resizer-right" class="resizer"></div>
+
+    <!-- Editor/Preview (right panel) -->
+    <div id="editor-panel" class="panel">
+      <div class="panel-header">
+        <span id="editor-title">No file open</span>
+        <div>
+          <button id="btn-edit-mode" class="panel-btn" title="Toggle Edit">Edit</button>
+          <button id="btn-save" class="panel-btn" title="Save (Ctrl+S)" disabled>Save</button>
+          <button id="btn-close-editor" class="panel-btn" title="Close">&#x2715;</button>
+        </div>
+      </div>
+      <div id="editor-container">
+        <div id="editor-welcome">
+          <p>Select a file from the explorer to view it here.</p>
+        </div>
+        <pre id="editor-content" class="hidden"></pre>
+        <textarea id="editor-textarea" class="hidden"></textarea>
+        <div id="editor-preview" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Tab Bar -->
+  <div id="mobile-tab-bar" class="mobile-only">
+    <button class="tab-btn active" data-panel="terminal">Terminal</button>
+    <button class="tab-btn" data-panel="files">Files</button>
+    <button class="tab-btn" data-panel="editor">Editor</button>
+  </div>
+
+  <!-- Auth Dialog -->
+  <div id="auth-dialog" class="dialog">
+    <div class="dialog-content">
+      <h2>Connect to CCR Server</h2>
+      <div class="form-group">
+        <label for="auth-token">Access Token</label>
+        <input type="password" id="auth-token" placeholder="Enter your access token">
+      </div>
+      <button id="btn-connect" class="btn-primary">Connect</button>
+      <p id="auth-error" class="error-text hidden"></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.min.js"></script>
+  <script src="/js/ws-client.js"></script>
+  <script src="/js/terminal.js"></script>
+  <script src="/js/file-tree.js"></script>
+  <script src="/js/editor.js"></script>
+  <script src="/js/session-bar.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "ccr-ide",
+  "version": "0.1.0",
+  "description": "Claude Code Remote - IDE integration plugin for terminal multiplexing and file management",
+  "author": "ccr",
+  "skills": [
+    "skills/ccr-preview.skill",
+    "skills/ccr-explorer.skill",
+    "skills/ccr-canvas.skill"
+  ],
+  "entrypoint": "src/cli.ts"
+}

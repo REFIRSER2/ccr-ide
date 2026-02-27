@@ -84,6 +84,22 @@ export function encodeSessionList(sessions: unknown[]): Buffer {
   return encodeMessage(MessageType.SESSION_LIST, sessions);
 }
 
+export function encodeFileList(path: string, files: unknown[]): Buffer {
+  return encodeMessage(MessageType.FILE_LIST, { path, files });
+}
+
+export function encodeFileRead(path: string): Buffer {
+  return encodeMessage(MessageType.FILE_READ, { path });
+}
+
+export function encodeFileContent(path: string, content: string, language: string): Buffer {
+  return encodeMessage(MessageType.FILE_CONTENT, { path, content, language });
+}
+
+export function encodeFileWrite(path: string, content: string): Buffer {
+  return encodeMessage(MessageType.FILE_WRITE, { path, content });
+}
+
 /**
  * Encodes terminal output data along with the sessionId it belongs to.
  * Format: [1 byte type][8 bytes sessionId length (LE uint32) + sessionId string][terminal data]

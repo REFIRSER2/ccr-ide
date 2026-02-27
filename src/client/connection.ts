@@ -141,9 +141,9 @@ export class Connection extends EventEmitter {
     this.ws.send(encodeResize(cols, rows));
   }
 
-  createSession(name?: string, cwd?: string): void {
+  createSession(name?: string, cwd?: string, cols?: number, rows?: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(encodeSessionControl(SessionAction.CREATE, undefined, { name, cwd }));
+    this.ws.send(encodeSessionControl(SessionAction.CREATE, undefined, { name, cwd, cols, rows }));
   }
 
   attachSession(sessionId: string): void {

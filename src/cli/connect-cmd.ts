@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { platform } from 'node:os';
 import { DEFAULT_PORT } from '../shared/constants.js';
 
 export function createConnectCommand(): Command {
@@ -8,13 +10,13 @@ export function createConnectCommand(): Command {
     .argument('<address>', 'Server address (host:port)')
     .requiredOption('-t, --token <token>', 'Access token')
     .option('--token-file <path>', 'Read token from file')
-    .option('--raw', 'Use raw mode (no TUI, direct stdin/stdout relay)', false)
     .option('-s, --session <id>', 'Attach to a specific session')
+    .option('--web', 'Open Web IDE in browser instead of raw terminal mode')
     .action(async (address: string, opts: {
       token?: string;
       tokenFile?: string;
-      raw: boolean;
       session?: string;
+      web?: boolean;
     }) => {
       // Parse address
       const parts = address.split(':');
@@ -31,7 +33,29 @@ export function createConnectCommand(): Command {
         process.exit(1);
       }
 
-      if (opts.raw) {
+      if (opts.web) {
+        // Open Web IDE in browser
+        const url = `http://${host}:${port}`;
+        console.log(`[CCR] Opening Web IDE: ${url}`);
+
+        try {
+          const isWin = platform() === 'win32';
+          const isMac = platform() === 'darwin';
+
+          if (isWin) {
+            execSync(`start "" "${url}"`, { stdio: 'ignore', shell: 'cmd.exe' });
+          } else if (isMac) {
+            execSync(`open "${url}"`, { stdio: 'ignore' });
+          } else {
+            execSync(`xdg-open "${url}"`, { stdio: 'ignore' });
+          }
+        } catch {
+          console.log(`[CCR] Could not open browser. Visit: ${url}`);
+        }
+
+        console.log(`[CCR] Token for Web IDE: ${token}`);
+      } else {
+        // Raw mode (default) - direct stdin/stdout relay
         const { startRawMode } = await import('../client/raw-mode.js');
         startRawMode({
           host,
@@ -39,21 +63,6 @@ export function createConnectCommand(): Command {
           token,
           sessionId: opts.session,
         });
-      } else {
-        // TUI mode with Ink
-        const { render } = await import('ink');
-        const React = await import('react');
-        const { App } = await import('../client/app.js');
-
-        render(
-          React.createElement(App, {
-            host,
-            port,
-            token,
-            sessionId: opts.session,
-          }),
-          { exitOnCtrlC: true }
-        );
       }
     });
 

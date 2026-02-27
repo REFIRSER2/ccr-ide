@@ -5,3 +5,6 @@ dist/
 .env
 .ccr/
 *.tsbuildinfo
+sessions/
+plugin/dist/
+plugin/node_modules/

@@ -1,4 +1,5 @@
 import { Connection } from './connection.js';
+import { RawSessionManager } from './raw-session-manager.js';
 import type { ErrorPayload, SessionInfo } from '../shared/types.js';
 
 export interface RawModeOptions {
@@ -11,6 +12,8 @@ export interface RawModeOptions {
 /**
  * Raw mode: directly relay stdin/stdout to/from the remote Claude Code CLI.
  * Minimal latency, no TUI overhead. Like SSH.
+ *
+ * Session management: Ctrl+B prefix for tmux-style session commands.
  */
 export function startRawMode(opts: RawModeOptions): void {
   const conn = new Connection({
@@ -20,7 +23,10 @@ export function startRawMode(opts: RawModeOptions): void {
     autoReconnect: true,
   });
 
+  const sessionMgr = new RawSessionManager(conn);
   let sessionAttached = false;
+  let outputPaused = false;
+  let outputBuffer: Buffer[] = [];
 
   // Enter raw mode on stdin
   if (process.stdin.isTTY) {
@@ -29,7 +35,7 @@ export function startRawMode(opts: RawModeOptions): void {
   process.stdin.resume();
 
   conn.on('connected', () => {
-    process.stderr.write('[CCR] Connected to server\r\n');
+    process.stderr.write('[CCR] Connected (Ctrl+B ? for help)\r\n');
   });
 
   conn.on('authenticated', () => {
@@ -37,8 +43,8 @@ export function startRawMode(opts: RawModeOptions): void {
 
     if (opts.sessionId) {
       conn.attachSession(opts.sessionId);
+      sessionMgr.currentSession = opts.sessionId;
     } else {
-      // Request session list to pick or create
       conn.listSessions();
     }
   });
@@ -47,21 +53,33 @@ export function startRawMode(opts: RawModeOptions): void {
     if (sessionAttached) return;
 
     if (sessions.length > 0 && !opts.sessionId) {
-      // Attach to the first available session
       const target = sessions.find(s => !s.connected) ?? sessions[0];
       process.stderr.write(`[CCR] Attaching to session: ${target.name} (${target.id})\r\n`);
       conn.attachSession(target.id);
+      sessionMgr.currentSession = target.id;
       sessionAttached = true;
     } else if (sessions.length === 0) {
-      // Create a new session
       process.stderr.write('[CCR] No sessions found, creating new session...\r\n');
-      conn.createSession();
+      const cols = process.stdout.columns || 80;
+      const rows = process.stdout.rows || 24;
+      conn.createSession(undefined, undefined, cols, rows);
       sessionAttached = true;
     }
   });
 
+  // Track session attachment from session-output events
+  conn.on('session-output', (sessionId: string) => {
+    if (!sessionMgr.currentSession) {
+      sessionMgr.currentSession = sessionId;
+    }
+  });
+
   conn.on('data', (data: Buffer) => {
-    process.stdout.write(data);
+    if (outputPaused) {
+      outputBuffer.push(data);
+    } else {
+      process.stdout.write(data);
+    }
   });
 
   conn.on('server-error', (err: ErrorPayload) => {
@@ -87,9 +105,12 @@ export function startRawMode(opts: RawModeOptions): void {
     process.stderr.write(`[CCR] Connection error: ${err.message}\r\n`);
   });
 
-  // Forward stdin to server
+  // Forward stdin through session manager (handles Ctrl+B prefix)
   process.stdin.on('data', (data: Buffer) => {
-    conn.sendInput(data);
+    const forwarded = sessionMgr.handleInput(data);
+    if (forwarded !== null) {
+      conn.sendInput(forwarded);
+    }
   });
 
   // Forward terminal resize
@@ -98,14 +119,13 @@ export function startRawMode(opts: RawModeOptions): void {
       conn.sendResize(process.stdout.columns, process.stdout.rows);
     });
 
-    // Send initial size
     conn.on('authenticated', () => {
       conn.sendResize(process.stdout.columns, process.stdout.rows);
     });
   }
 
-  // Cleanup on exit
   function cleanup() {
+    sessionMgr.dispose();
     conn.disconnect();
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
@@ -123,6 +143,5 @@ export function startRawMode(opts: RawModeOptions): void {
     process.exit(0);
   });
 
-  // Start connection
   conn.connect();
 }

@@ -1,7 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import type { IncomingMessage } from 'node:http';
-import { createServer, type Server } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type Server } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { join, extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SessionManager } from './session-manager.js';
+import { FileHandler } from './file-handler.js';
+import { RateLimiter } from './rate-limiter.js';
 import { verifyAccessToken } from './auth.js';
 import {
   decodeMessage,
@@ -12,6 +18,8 @@ import {
   encodeAuthOk,
   encodeError,
   encodePong,
+  encodeFileList,
+  encodeFileContent,
 } from '../shared/protocol.js';
 import {
   MessageType,
@@ -19,9 +27,29 @@ import {
   type ResizePayload,
   type SessionControlPayload,
   type AuthPayload,
+  type FileReadPayload,
+  type FileWritePayload,
   type ServerConfig,
 } from '../shared/types.js';
-import { HEARTBEAT_INTERVAL_MS, AUTH_TIMEOUT_MS } from '../shared/constants.js';
+import { HEARTBEAT_INTERVAL_MS, AUTH_TIMEOUT_MS, SESSIONS_DIR } from '../shared/constants.js';
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.map': 'application/json',
+};
 
 interface AuthenticatedSocket extends WebSocket {
   isAlive: boolean;
@@ -29,22 +57,53 @@ interface AuthenticatedSocket extends WebSocket {
   currentSessionId: string | null;
 }
 
+export interface TLSOptions {
+  cert: Buffer;
+  key: Buffer;
+}
+
 export class CCRServer {
   private wss: WebSocketServer | null = null;
   private httpServer: Server | null = null;
   private sessionManager: SessionManager;
+  private fileHandler: FileHandler;
+  private rateLimiter: RateLimiter;
   private config: ServerConfig;
+  private tlsOptions?: TLSOptions;
+  private baseDir: string;
+  private webDir: string;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(config: ServerConfig) {
+  constructor(config: ServerConfig, baseDir?: string, tlsOptions?: TLSOptions) {
     this.config = config;
-    this.sessionManager = new SessionManager();
+    this.tlsOptions = tlsOptions;
+    this.baseDir = baseDir ?? process.cwd();
+    this.sessionManager = new SessionManager(this.baseDir);
+    this.fileHandler = new FileHandler(join(this.baseDir, SESSIONS_DIR));
+    this.rateLimiter = new RateLimiter(200, 1000); // 200 messages per second
+
+    // Resolve web directory relative to this file's location
+    const currentDir = typeof __dirname !== 'undefined'
+      ? __dirname
+      : fileURLToPath(new URL('.', import.meta.url));
+    this.webDir = resolve(currentDir, '..', 'web');
   }
 
   start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.httpServer = createServer();
+      const requestHandler = (req: IncomingMessage, res: ServerResponse) => {
+        this.handleHttpRequest(req, res);
+      };
+
+      if (this.tlsOptions) {
+        this.httpServer = createHttpsServer(
+          { cert: this.tlsOptions.cert, key: this.tlsOptions.key },
+          requestHandler,
+        ) as unknown as Server;
+      } else {
+        this.httpServer = createHttpServer(requestHandler);
+      }
 
       this.wss = new WebSocketServer({ server: this.httpServer });
 
@@ -66,6 +125,82 @@ export class CCRServer {
     });
   }
 
+  private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+    const pathname = url.pathname;
+
+    // API routes
+    if (pathname.startsWith('/api/')) {
+      this.handleApiRequest(req, res, pathname);
+      return;
+    }
+
+    // Static file serving for web IDE
+    this.serveStaticFile(res, pathname);
+  }
+
+  private handleApiRequest(_req: IncomingMessage, res: ServerResponse, pathname: string): void {
+    // Health check
+    if (pathname === '/api/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', sessions: this.sessionManager.getSessionCount() }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
+  }
+
+  private serveStaticFile(res: ServerResponse, pathname: string): void {
+    // Default to index.html
+    let filePath = pathname === '/' ? '/index.html' : pathname;
+
+    // Prevent path traversal
+    const normalizedPath = join(this.webDir, filePath);
+    if (!normalizedPath.startsWith(this.webDir)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    if (!existsSync(normalizedPath) || statSync(normalizedPath).isDirectory()) {
+      // Try appending index.html for directory
+      const indexPath = join(normalizedPath, 'index.html');
+      if (existsSync(indexPath)) {
+        this.sendFile(res, indexPath);
+        return;
+      }
+      // Fallback to SPA routing
+      const spaPath = join(this.webDir, 'index.html');
+      if (existsSync(spaPath)) {
+        this.sendFile(res, spaPath);
+      } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Web IDE not found. Place web files in src/web/');
+      }
+      return;
+    }
+
+    this.sendFile(res, normalizedPath);
+  }
+
+  private sendFile(res: ServerResponse, filePath: string): void {
+    try {
+      const ext = extname(filePath);
+      const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+      const content = readFileSync(filePath);
+
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Cache-Control': 'no-cache',
+      });
+      res.end(content);
+    } catch {
+      res.writeHead(500);
+      res.end('Internal Server Error');
+    }
+  }
+
   private handleConnection(ws: AuthenticatedSocket, req: IncomingMessage): void {
     ws.isAlive = true;
     ws.authenticated = false;
@@ -80,12 +215,25 @@ export class CCRServer {
       if (payload) {
         ws.authenticated = true;
         this.sendMessage(ws, encodeAuthOk());
-        // Automatically send current session list upon authentication
         this.sendSessionList(ws);
       }
     }
 
-    // If not authenticated via header, wait for AUTH message
+    // Check query param auth for web clients (ws://host:port?token=xxx)
+    if (!ws.authenticated) {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+      const queryToken = url.searchParams.get('token');
+      if (queryToken) {
+        const payload = verifyAccessToken(queryToken, this.config);
+        if (payload) {
+          ws.authenticated = true;
+          this.sendMessage(ws, encodeAuthOk());
+          this.sendSessionList(ws);
+        }
+      }
+    }
+
+    // If not authenticated via header or query, wait for AUTH message
     if (!ws.authenticated) {
       const authTimeout = setTimeout(() => {
         if (!ws.authenticated) {
@@ -105,9 +253,7 @@ export class CCRServer {
             if (payload) {
               ws.authenticated = true;
               this.sendMessage(ws, encodeAuthOk());
-              // Automatically send current session list upon authentication
               this.sendSessionList(ws);
-              // Re-register the main message handler
               ws.on('message', (data: Buffer | ArrayBuffer) => this.handleMessage(ws, data));
             } else {
               this.sendMessage(ws, encodeError('AUTH_FAILED', 'Invalid token'));
@@ -141,6 +287,13 @@ export class CCRServer {
   private handleMessage(ws: AuthenticatedSocket, raw: Buffer | ArrayBuffer): void {
     if (!ws.authenticated) return;
 
+    // Rate limiting (use remote address as key)
+    const clientKey = (ws as any)._socket?.remoteAddress ?? 'unknown';
+    if (!this.rateLimiter.check(clientKey)) {
+      this.sendMessage(ws, encodeError('RATE_LIMITED', 'Too many messages'));
+      return;
+    }
+
     const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
 
     try {
@@ -161,6 +314,18 @@ export class CCRServer {
 
         case MessageType.SESSION_CONTROL:
           this.handleSessionControl(ws, msg.payload);
+          break;
+
+        case MessageType.FILE_LIST:
+          this.handleFileList(ws, msg.payload);
+          break;
+
+        case MessageType.FILE_READ:
+          this.handleFileRead(ws, msg.payload);
+          break;
+
+        case MessageType.FILE_WRITE:
+          this.handleFileWrite(ws, msg.payload);
           break;
 
         default:
@@ -202,12 +367,11 @@ export class CCRServer {
         const session = this.sessionManager.createSession({
           name: ctrl.name,
           cwd: ctrl.cwd,
+          cols: ctrl.cols,
+          rows: ctrl.rows,
         });
 
-        // Auto-attach to new session
         this.attachToSession(ws, session.id);
-
-        // Broadcast updated session list to all authenticated clients
         this.broadcastSessionList();
         break;
       }
@@ -238,7 +402,6 @@ export class CCRServer {
           ws.currentSessionId = null;
         }
         this.sessionManager.destroySession(ctrl.sessionId);
-        // Broadcast updated session list to all authenticated clients
         this.broadcastSessionList();
         break;
       }
@@ -250,8 +413,51 @@ export class CCRServer {
     }
   }
 
+  private handleFileList(ws: AuthenticatedSocket, payload: Buffer): void {
+    if (!ws.currentSessionId) {
+      this.sendMessage(ws, encodeError('NO_SESSION', 'No session attached'));
+      return;
+    }
+    const { path: reqPath } = decodeJsonPayload<{ path: string }>(payload);
+    try {
+      const files = this.fileHandler.listFiles(ws.currentSessionId, reqPath);
+      this.sendMessage(ws, encodeFileList(reqPath, files));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.sendMessage(ws, encodeError('FILE_ERROR', message));
+    }
+  }
+
+  private handleFileRead(ws: AuthenticatedSocket, payload: Buffer): void {
+    if (!ws.currentSessionId) {
+      this.sendMessage(ws, encodeError('NO_SESSION', 'No session attached'));
+      return;
+    }
+    const { path: reqPath } = decodeJsonPayload<FileReadPayload>(payload);
+    try {
+      const result = this.fileHandler.readFile(ws.currentSessionId, reqPath);
+      this.sendMessage(ws, encodeFileContent(reqPath, result.content, result.language));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.sendMessage(ws, encodeError('FILE_ERROR', message));
+    }
+  }
+
+  private handleFileWrite(ws: AuthenticatedSocket, payload: Buffer): void {
+    if (!ws.currentSessionId) {
+      this.sendMessage(ws, encodeError('NO_SESSION', 'No session attached'));
+      return;
+    }
+    const { path: reqPath, content } = decodeJsonPayload<{ path: string; content: string }>(payload);
+    try {
+      this.fileHandler.writeFile(ws.currentSessionId, reqPath, content);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.sendMessage(ws, encodeError('FILE_ERROR', message));
+    }
+  }
+
   private attachToSession(ws: AuthenticatedSocket, sessionId: string): void {
-    // Detach from current session first
     if (ws.currentSessionId) {
       this.sessionManager.detachClient(ws.currentSessionId);
     }
@@ -264,7 +470,6 @@ export class CCRServer {
 
     const success = this.sessionManager.attachClient(sessionId, ws, (data: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) {
-        // Send SESSION_OUTPUT with sessionId so the client knows which session produced the output
         this.sendMessage(ws, encodeSessionOutput(sessionId, data));
       }
     });
@@ -272,7 +477,6 @@ export class CCRServer {
     if (success) {
       ws.currentSessionId = sessionId;
 
-      // Send scrollback for reconnection
       const scrollback = session.getScrollback();
       if (scrollback.length > 0) {
         this.sendMessage(ws, encodeTerminalData(scrollback));
@@ -285,6 +489,9 @@ export class CCRServer {
       this.sessionManager.detachClient(ws.currentSessionId);
       ws.currentSessionId = null;
     }
+    // Clean up rate limiter
+    const clientKey = (ws as any)._socket?.remoteAddress ?? 'unknown';
+    this.rateLimiter.remove(clientKey);
   }
 
   private sendMessage(ws: WebSocket, data: Buffer): void {
@@ -298,9 +505,6 @@ export class CCRServer {
     this.sendMessage(ws, encodeSessionList(sessions));
   }
 
-  /**
-   * Broadcast the current session list to all authenticated, connected clients.
-   */
   private broadcastSessionList(): void {
     if (!this.wss) return;
     const sessions = this.sessionManager.listSessions();
@@ -330,7 +534,6 @@ export class CCRServer {
   }
 
   private startCleanup(): void {
-    // Cleanup idle sessions every 5 minutes
     this.cleanupInterval = setInterval(() => {
       const cleaned = this.sessionManager.cleanupIdleSessions();
       if (cleaned > 0) {

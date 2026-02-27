@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { PtySession, type PtySessionOptions } from './pty-session.js';
 import type { SessionInfo } from '../shared/types.js';
+import { SESSIONS_DIR } from '../shared/constants.js';
 import type WebSocket from 'ws';
 
 interface ManagedSession {
@@ -11,15 +14,27 @@ interface ManagedSession {
 
 export class SessionManager {
   private sessions = new Map<string, ManagedSession>();
+  private baseDir: string;
+
+  constructor(baseDir?: string) {
+    this.baseDir = baseDir ?? process.cwd();
+    // Ensure sessions directory exists
+    const sessionsDir = join(this.baseDir, SESSIONS_DIR);
+    mkdirSync(sessionsDir, { recursive: true });
+  }
 
   createSession(opts?: Partial<Pick<PtySessionOptions, 'name' | 'cwd' | 'cols' | 'rows'>>): PtySession {
     const id = crypto.randomUUID().slice(0, 8);
     const name = opts?.name ?? `session-${id}`;
 
+    // Create isolated session folder
+    const sessionDir = join(this.baseDir, SESSIONS_DIR, id);
+    mkdirSync(sessionDir, { recursive: true });
+
     const session = new PtySession({
       id,
       name,
-      cwd: opts?.cwd,
+      cwd: opts?.cwd ?? sessionDir,
       cols: opts?.cols,
       rows: opts?.rows,
     });
