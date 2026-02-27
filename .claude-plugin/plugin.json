@@ -1,0 +1,8 @@
+{
+  "name": "ccr-plugin",
+  "version": "0.1.0",
+  "description": "Claude Code Remote - IDE integration plugin for terminal multiplexing and file management",
+  "author": {
+    "name": "ccr"
+  }
+}
